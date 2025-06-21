@@ -491,21 +491,25 @@ class PostgresDatabase(Database):
             return await conn.fetch(
                 """
                 SELECT
-                    c.code AS chain,
-                    cpr.product_id,
-                    cp.min_price,
-                    cp.max_price,
-                    cp.avg_price
-                FROM chain_prices cp
-                JOIN chain_products cpr ON cp.chain_product_id = cpr.id
-                JOIN chains c ON cpr.chain_id = c.id
-                WHERE cpr.product_id = ANY($1)
-                AND cp.price_date = (
-                    SELECT MAX(cp2.price_date)
+                    chains.code as chain,
+                    products.id as product_id,
+                    chain_prices.min_price,
+                    chain_prices.max_price,
+                    chain_prices.avg_price
+                FROM chain_prices
+                JOIN chain_products ON chain_products.id = chain_prices.chain_product_id
+                JOIN chains ON chains.id = chain_products.chain_id
+                JOIN products ON products.id = chain_products.product_id
+                WHERE products.id = ANY($1)
+                  AND chain_prices.price_date = (
+                    SELECT max(price_date)
                     FROM chain_prices cp2
-                    WHERE cp2.chain_product_id = cp.chain_product_id
-                    AND cp2.price_date <= $2
-                )
+                    JOIN chain_products cpr2 ON cpr2.id = cp2.chain_product_id
+                    JOIN products p2 ON products.id = cpr2.product_id
+                    WHERE p2.ean = products.ean
+                      AND chain_id = chains.id
+                      AND price_date < $2
+                    );
                 """,
                 product_ids,
                 date,
